@@ -42,7 +42,7 @@ public class OhhAuth
     ///
     /// - Returns: OAuth HTTP header entry for the Authorization field.
     static func calculateSignature(url: URL, method: String, parameter: [String: String],
-        consumerCredentials cc: Credentials, userCredentials uc: Credentials?) -> String
+                                   consumerCredentials cc: Credentials, userCredentials uc: Credentials?, callback: String) -> String
     {
         typealias Tup = (key: String, value: String)
         
@@ -60,7 +60,7 @@ public class OhhAuth
         }
         
         /// [RFC-5849 Section 3.1](https://tools.ietf.org/html/rfc5849#section-3.1)
-        var oAuthParameters = oAuthDefaultParameters(consumerKey: cc.key, userKey: uc?.key)
+        var oAuthParameters = oAuthDefaultParameters(consumerKey: cc.key, userKey: uc?.key, callback: callback)
         
         /// [RFC-5849 Section 3.4.1.3.1](https://tools.ietf.org/html/rfc5849#section-3.4.1.3.1)
         let signString: String = [oAuthParameters, parameter, url.queryParameters()]
@@ -123,7 +123,7 @@ public class OhhAuth
         return str.addingPercentEncoding(withAllowedCharacters: Static.allowedSet) ?? str
     }
     
-    private static func oAuthDefaultParameters(consumerKey: String, userKey: String?) -> [String: String]
+    private static func oAuthDefaultParameters(consumerKey: String, userKey: String?, callback: String) -> [String: String]
     {
         /// [RFC-5849 Section 3.1](https://tools.ietf.org/html/rfc5849#section-3.1)
         var defaults: [String: String] = [
@@ -133,6 +133,7 @@ public class OhhAuth
             /// [RFC-5849 Section 3.3](https://tools.ietf.org/html/rfc5849#section-3.3)
             "oauth_timestamp":        String(Int(Date().timeIntervalSince1970)),
             "oauth_nonce":            UUID().uuidString,
+            "oauth_callback":         callback
         ]
         if let userKey = userKey {
             defaults["oauth_token"] = userKey
@@ -155,7 +156,7 @@ public extension URLRequest
     ///   - consumerCredentials: consumer credentials
     ///   - userCredentials: user credentials (nil if this is a request without user association)
     mutating func oAuthSign(method: String, urlFormParameters paras: [String: String],
-        consumerCredentials cc: OhhAuth.Credentials, userCredentials uc: OhhAuth.Credentials? = nil)
+                            consumerCredentials cc: OhhAuth.Credentials, userCredentials uc: OhhAuth.Credentials? = nil, callback: String)
     {
         self.httpMethod = method.uppercased()
         
@@ -165,8 +166,14 @@ public extension URLRequest
         self.addValue(String(body?.count ?? 0), forHTTPHeaderField: "Content-Length")
         self.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        let sig = OhhAuth.calculateSignature(url: self.url!, method: self.httpMethod!,
-                      parameter: paras, consumerCredentials: cc, userCredentials: uc)
+        let sig = OhhAuth.calculateSignature(
+            url: self.url!,
+            method: self.httpMethod!,
+            parameter: paras,
+            consumerCredentials: cc,
+            userCredentials: uc,
+            callback: callback
+        )
         
         self.addValue(sig, forHTTPHeaderField: "Authorization")
     }
@@ -183,7 +190,7 @@ public extension URLRequest
     ///   - consumerCredentials: consumer credentials
     ///   - userCredentials: user credentials (nil if this is a request without user association)
     mutating func oAuthSign(method: String, body: Data? = nil, contentType: String? = nil,
-        consumerCredentials cc: OhhAuth.Credentials, userCredentials uc: OhhAuth.Credentials? = nil)
+                            consumerCredentials cc: OhhAuth.Credentials, userCredentials uc: OhhAuth.Credentials? = nil, callback: String)
     {
         self.httpMethod = method.uppercased()
         
@@ -197,7 +204,7 @@ public extension URLRequest
         }
         
         let sig = OhhAuth.calculateSignature(url: self.url!, method: self.httpMethod!,
-                      parameter: [:], consumerCredentials: cc, userCredentials: uc)
+                                             parameter: [:], consumerCredentials: cc, userCredentials: uc, callback: callback)
         
         self.addValue(sig, forHTTPHeaderField: "Authorization")
     }
